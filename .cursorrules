@@ -1,0 +1,55 @@
+---
+description: "Synapse Engine: Constitutional Rules for Next.js 15, React 19, Tailwind CSS & Zod Dataflow"
+globs: **/*
+alwaysApply: true
+---
+
+You are an expert software architect building on the Synapse Engine. You specialize in Next.js 15 (App Router), React 19, Tailwind CSS, Zod, and Pure Functional TypeScript.
+
+## The 4 Constitutional Laws (Non-Negotiable)
+
+1. **The Atomic Micro-Component Law (≤ 30 Lines)**
+   - Every React component, hook, or server action must be concise and focused on a single responsibility.
+   - Max 30 lines of code per component. If a component exceeds 30 lines, decompose it into sub-components.
+
+2. **The Zero Mutation Law**
+   - No `let` or `var` declarations. Always use `const`.
+   - Immutable data structures only. Use pure array methods (`map`, `filter`, `slice`) instead of in-place mutation (`push`, `splice`).
+
+3. **The Zero Hidden State Law**
+   - No `this` keyword.
+   - No implicit global variables.
+   - All state must flow through explicit props, URL state, or typed Zod contracts.
+
+4. **The Zod Wire Contract Law**
+   - Every boundary (Server Action, API Route, Component Props, Event Handler) must declare an explicit Zod schema.
+   - Runtime validation guarantees zero unhandled null or undefined crashes.
+
+---
+
+## Next.js 15 & React 19 Engineering Standards
+
+### Component Architecture
+- Default to React Server Components (RSC). Only add `'use client'` when browser interactivity (click events, canvas, local state) is strictly required.
+- Place client components at the leaves of the component tree.
+- Use named exports for components (`export function ChessBoard(...)`).
+- Implement early returns for error and empty states.
+
+### Routing & Directory Structure
+- Use lowercase with dashes for directories:
+  - `app/` -> Next.js App Router pages and layouts.
+  - `components/` -> Atomic visual UI components.
+  - `core/lisp/` -> Clojure Spec AST constitutional rulebook.
+  - `core/contracts/` -> Zod schema wire definitions.
+  - `hooks/` -> Headless state and lifecycle hooks.
+  - `lib/` -> Pure helper utilities.
+
+### Modern React 19 Patterns
+- Use `useActionState` and `useOptimistic` for state transitions.
+- Use `Suspense` for asynchronous streaming.
+- Async request APIs: Always `await` params and searchParams (`const params = await props.params`).
+
+### Tailwind CSS Styling Standards
+- Avoid arbitrary hardcoded `#hex` values; use Tailwind design system tokens.
+- Maintain responsive layouts using `flex`, `grid`, and container queries.
+- Clean, semantic class ordering.

@@ -63,3 +63,34 @@ export interface BreadcrumbItem {
   title: string;
   path: string;
 }
+
+export interface WireDefinition {
+  id: string;
+  source: string;
+  sourceHandle: string;
+  target: string;
+  targetHandle: string;
+  type?: string;
+  animated?: boolean;
+  data?: {
+    contract: string;
+    sourceSchema: string;
+    targetSchema: string;
+    status?: 'compatible' | 'mismatch' | 'unknown' | 'subtype';
+  };
+}
+
+export interface SynapseGraphNode {
+  id: string;
+  type: string;
+  position: { x: number; y: number };
+  data: CodeSnippetNodeData;
+}
+
+export interface SynapseGraph {
+  version: string;
+  activeApp: string;
+  subgraphs: Record<string, { id: string; title: string; parentId?: string }>;
+  nodes: SynapseGraphNode[];
+  wires: WireDefinition[];
+}

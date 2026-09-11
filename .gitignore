@@ -21,3 +21,7 @@ dist/
 # OS Files
 .DS_Store
 Thumbs.db
+
+# Synapse Exports & TS Build Cache
+exports/
+*.tsbuildinfo

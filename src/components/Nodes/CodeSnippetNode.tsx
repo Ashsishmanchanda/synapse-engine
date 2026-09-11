@@ -60,7 +60,7 @@ export const CodeSnippetNode: React.FC<NodeProps<CodeSnippetNodeType>> = ({ data
     onSplitNode,
   } = data;
 
-  const isCompound = category === 'compound' || Boolean((data as any).isCompound) || Boolean(data.subgraphId);
+  const isCompound = category === 'compound' || Boolean((data as any).isCompound) || Boolean((data as any).targetSubgraphId);
 
   const handleCopyCode = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -116,7 +116,7 @@ export const CodeSnippetNode: React.FC<NodeProps<CodeSnippetNodeType>> = ({ data
       } ${getStatusBorder()}`}
       onDoubleClick={() => {
         if (isCompound && onDrillDown) {
-          onDrillDown(data.subgraphId || id, title);
+          onDrillDown((data as any).targetSubgraphId || id, title);
         } else if (onToggleExpand) {
           onToggleExpand(id);
         }
@@ -130,9 +130,17 @@ export const CodeSnippetNode: React.FC<NodeProps<CodeSnippetNodeType>> = ({ data
             <div className="flex items-center gap-1.5 text-[9px] font-bold tracking-wider uppercase text-slate-300">
               <span>{domain}/{module}</span>
               {isCompound && (
-                <span className="text-[8px] bg-purple-500/30 text-purple-200 px-1 py-0.2 rounded border border-purple-400/40 flex items-center gap-0.5">
-                  <Layers className="w-2.5 h-2.5" /> Subgraph ({collapsedChildCount || 0})
-                </span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (onDrillDown) onDrillDown((data as any).targetSubgraphId || id, title);
+                  }}
+                  className="text-[8px] bg-purple-500/30 hover:bg-purple-500/60 text-purple-200 px-1 py-0.2 rounded border border-purple-400/40 flex items-center gap-0.5 cursor-pointer transition-colors"
+                  title="Click to enter subgraph level"
+                >
+                  <Layers className="w-2.5 h-2.5" /> Subgraph ({collapsedChildCount || 0}) ↵
+                </button>
               )}
             </div>
             <h4 className="text-xs font-bold text-white truncate tracking-wide">{title || action}</h4>
@@ -145,9 +153,9 @@ export const CodeSnippetNode: React.FC<NodeProps<CodeSnippetNodeType>> = ({ data
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                onDrillDown(data.subgraphId || id, title);
+                onDrillDown((data as any).targetSubgraphId || id, title);
               }}
-              title="Drill Down into Subgraph"
+              title="Drill Down into Subgraph Level"
               className="p-1 hover:bg-white/10 text-purple-300 rounded transition-colors"
             >
               <ExternalLink className="w-3.5 h-3.5" />
@@ -243,6 +251,27 @@ export const CodeSnippetNode: React.FC<NodeProps<CodeSnippetNodeType>> = ({ data
           );
         })}
       </div>
+
+      {/* 2.5 Compound Subgraph Quick-Access Banner */}
+      {isCompound && (
+        <div className="px-3 py-2 bg-gradient-to-r from-purple-950/40 via-indigo-950/30 to-purple-950/40 border-t border-purple-500/30 flex items-center justify-between">
+          <div className="flex items-center gap-1.5 text-[10px] text-purple-300 font-mono">
+            <Layers className="w-3.5 h-3.5 text-purple-400 animate-pulse" />
+            <span>Compound Subgraph ({collapsedChildCount || 0} nodes)</span>
+          </div>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onDrillDown) onDrillDown((data as any).targetSubgraphId || id, title);
+            }}
+            className="px-2.5 py-1 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded text-[10px] font-bold flex items-center gap-1 shadow-[0_0_10px_rgba(168,85,247,0.4)] hover:shadow-[0_0_15px_rgba(168,85,247,0.7)] transition-all cursor-pointer"
+          >
+            <span>Inspect Level</span>
+            <ExternalLink className="w-3 h-3" />
+          </button>
+        </div>
+      )}
 
       {/* 3. Constitutional Status Pill Strip */}
       <div className="px-3 py-1.5 bg-[#070a0f] border-t border-slate-800/80 rounded-b-xl flex items-center justify-between text-[10px] text-slate-400">

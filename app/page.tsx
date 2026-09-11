@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Sparkles, ShieldCheck, Cpu, Play, LayoutGrid, Layers, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Sparkles, ShieldCheck, Cpu, Play, LayoutGrid, Layers, RefreshCw, Download, ChevronRight, CheckCircle2 } from 'lucide-react';
 import {
   ReactFlow,
   Background,
@@ -15,6 +15,7 @@ import '@xyflow/react/dist/style.css';
 import { CodeSnippetNode } from '../src/components/Nodes/CodeSnippetNode';
 import { ZodWireEdge } from '../src/components/Edges/ZodWireEdge';
 import { evaluateNodeWithLisp } from '../src/core/lisp/constitutionalRulebook';
+import { ApexRoiAppView } from '../src/components/Apps/ApexRoiAppView';
 
 const nodeTypes = {
   codeSnippet: CodeSnippetNode,
@@ -360,8 +361,30 @@ export default function SynapseStudioPage() {
     }));
   };
 
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportNotice, setExportNotice] = useState<string | null>(null);
+  const [activeApp, setActiveApp] = useState<'saas' | 'chess'>('saas');
+
+  // Multi-Level Subgraph Breadcrumbs
+  const [breadcrumbs, setBreadcrumbs] = useState<Array<{ id: string; title: string }>>([
+    { id: 'root', title: 'Studio Root' }
+  ]);
+
+  const currentLevel = breadcrumbs[breadcrumbs.length - 1];
+
+  const handleDrillDown = (subgraphId: string, title?: string) => {
+    setBreadcrumbs(prev => [
+      ...prev,
+      { id: subgraphId, title: title || subgraphId }
+    ]);
+  };
+
+  const handlePopToLevel = (index: number) => {
+    setBreadcrumbs(prev => prev.slice(0, index + 1));
+  };
+
   // Canvas Nodes with Constitutional Metrics
-  const [nodes, , onNodesChange] = useNodesState(
+  const [nodes, setNodes, onNodesChange] = useNodesState(
     INITIAL_NODES_DATA.map(n => ({
       ...n,
       data: {
@@ -370,7 +393,69 @@ export default function SynapseStudioPage() {
       }
     }))
   );
-  const [edges, , onEdgesChange] = useEdgesState(INITIAL_EDGES);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(INITIAL_EDGES);
+
+  // Filter nodes & edges by current subgraph level
+  const visibleNodes = React.useMemo(() => {
+    if (activeApp === 'chess') {
+      return nodes;
+    }
+    const filtered = nodes.filter(n => {
+      const nodeSubgraphId = (n.data as any)?.subgraphId || 'root';
+      return nodeSubgraphId === currentLevel.id;
+    });
+
+    return filtered.map(node => ({
+      ...node,
+      data: {
+        ...node.data,
+        onDrillDown: handleDrillDown,
+      }
+    }));
+  }, [nodes, activeApp, currentLevel.id]);
+
+  const visibleEdges = React.useMemo(() => {
+    if (activeApp === 'chess') {
+      return edges;
+    }
+    const visibleIds = new Set(visibleNodes.map(n => n.id));
+    return edges.filter(e => visibleIds.has(e.source) && visibleIds.has(e.target));
+  }, [edges, activeApp, visibleNodes]);
+
+  const handleSyncGraph = async () => {
+    try {
+      const res = await fetch('/api/graph');
+      const data = await res.json();
+      if (data.success && data.graph?.nodes?.length > 0) {
+        setNodes(data.graph.nodes);
+        setEdges(data.graph.wires);
+      }
+    } catch (err) {
+      console.warn('Sync failed, keeping canvas state:', err);
+    }
+  };
+
+  const handleExportApp = async () => {
+    setIsExporting(true);
+    try {
+      const res = await fetch('/api/export', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        setExportNotice(`Application exported to: ${data.result.exportPath}`);
+        setTimeout(() => setExportNotice(null), 6000);
+      } else {
+        alert(`Export failed: ${data.message || 'Unknown error'}`);
+      }
+    } catch (err: any) {
+      alert(`Export error: ${err.message}`);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  useEffect(() => {
+    handleSyncGraph();
+  }, []);
 
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#080b11]">
@@ -405,8 +490,17 @@ export default function SynapseStudioPage() {
           </div>
         </div>
 
-        {/* View Switcher: Blueprint Canvas vs. Live Next.js App */}
-        <div className="flex items-center gap-2">
+        {/* View Switcher & Export Next.js 15 Button */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleExportApp}
+            disabled={isExporting}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black rounded-lg text-xs shadow-[0_0_15px_rgba(255,102,0,0.4)] transition-all disabled:opacity-50"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>{isExporting ? 'Synthesizing...' : 'Export Next.js 15'}</span>
+          </button>
+
           <div className="flex items-center p-1 bg-slate-900 border border-slate-800 rounded-lg">
             <button
               onClick={() => setViewMode('canvas')}
@@ -434,25 +528,139 @@ export default function SynapseStudioPage() {
         </div>
       </header>
 
+      {/* Breadcrumb Navigation & Graph Sync Toolbar */}
+      <div className="h-9 bg-[#0a0d14] border-b border-slate-800/80 px-4 flex items-center justify-between text-xs text-slate-400 z-20 shrink-0">
+        <div className="flex items-center gap-3">
+          <span className="text-slate-500 font-mono text-[11px]">Active App:</span>
+          <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 p-0.5 rounded-lg text-[11px] font-mono">
+            <button
+              onClick={() => {
+                setActiveApp('saas');
+                setBreadcrumbs([{ id: 'root', title: 'Studio Root' }]);
+                handleSyncGraph();
+              }}
+              className={`px-3 py-1 rounded-md font-bold transition-all ${
+                activeApp === 'saas'
+                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 shadow'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Apex ROI SaaS
+            </button>
+            <button
+              onClick={() => {
+                setActiveApp('chess');
+                setBreadcrumbs([{ id: 'root', title: 'Walnut Chess Studio' }]);
+                setNodes(INITIAL_NODES_DATA.map(n => ({
+                  ...n,
+                  data: {
+                    ...n.data,
+                    ruleMetrics: evaluateNodeWithLisp(n.data.code, n.data.category)
+                  }
+                })));
+                setEdges(INITIAL_EDGES);
+              }}
+              className={`px-3 py-1 rounded-md font-bold transition-all ${
+                activeApp === 'chess'
+                  ? 'bg-amber-500 text-slate-950 shadow'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Walnut Chess
+            </button>
+          </div>
+          <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
+          <div className="flex items-center gap-1 font-mono text-[11px]">
+            {breadcrumbs.map((crumb, idx) => {
+              const isLast = idx === breadcrumbs.length - 1;
+              return (
+                <React.Fragment key={crumb.id}>
+                  {idx > 0 && <ChevronRight className="w-3 h-3 text-slate-600" />}
+                  <button
+                    onClick={() => handlePopToLevel(idx)}
+                    className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-md transition-all cursor-pointer ${
+                      isLast
+                        ? 'text-amber-300 font-bold bg-amber-500/20 border border-amber-500/40 shadow-sm'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                    }`}
+                    title={isLast ? 'Active Level' : `Click to pop back to ${crumb.title}`}
+                  >
+                    {idx > 0 && <Layers className="w-3 h-3 text-purple-400" />}
+                    <span>{crumb.title}</span>
+                    <span className="text-[9px] text-slate-400 font-normal">
+                      (Level {idx})
+                    </span>
+                  </button>
+                </React.Fragment>
+              );
+            })}
+          </div>
+        </div>
+        <div className="flex items-center gap-4">
+          {exportNotice && (
+            <div className="flex items-center gap-1.5 px-2 py-0.5 bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 rounded text-[11px] font-mono">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>{exportNotice}</span>
+            </div>
+          )}
+          <button 
+            onClick={handleSyncGraph} 
+            className="flex items-center gap-1.5 hover:text-amber-400 transition-colors font-mono text-[11px]"
+            title="Reload blueprint topology from synapse-graph.json"
+          >
+            <RefreshCw className="w-3 h-3" />
+            <span>Sync Blueprint</span>
+          </button>
+        </div>
+      </div>
+
       {/* Main Viewport */}
       <main className="flex-1 w-full h-[calc(100vh-56px)] overflow-hidden relative">
         {viewMode === 'canvas' ? (
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            nodeTypes={nodeTypes}
-            edgeTypes={edgeTypes}
-            fitView
-            minZoom={0.2}
-            maxZoom={2.0}
-            defaultEdgeOptions={{ animated: true }}
-            className="bg-[#080b11]"
-          >
-            <Background color="#1e293b" gap={24} size={1} variant={BackgroundVariant.Dots} />
-            <Controls className="bg-slate-900 border border-slate-800 text-slate-200 rounded-lg overflow-hidden" />
-          </ReactFlow>
+          <>
+            {/* Subgraph Level Floating Status Banner */}
+            {currentLevel.id !== 'root' && (
+              <div className="absolute top-4 left-4 z-10 flex items-center gap-3 bg-slate-900/95 border border-purple-500/60 backdrop-blur-md px-3.5 py-2 rounded-xl shadow-[0_0_25px_rgba(168,85,247,0.3)]">
+                <div className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full bg-purple-400 animate-pulse" />
+                  <div>
+                    <div className="text-[9px] uppercase tracking-wider text-purple-400 font-bold">
+                      Inside Subgraph Level 1
+                    </div>
+                    <div className="text-xs font-mono font-bold text-white">
+                      {currentLevel.title}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => handlePopToLevel(breadcrumbs.length - 2)}
+                  className="ml-2 px-3 py-1 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold rounded-lg text-xs font-mono transition-all flex items-center gap-1 shadow-md cursor-pointer"
+                >
+                  <span>← Pop to Root Level</span>
+                </button>
+              </div>
+            )}
+
+            <ReactFlow
+              key={currentLevel.id}
+              nodes={visibleNodes}
+              edges={visibleEdges}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              nodeTypes={nodeTypes}
+              edgeTypes={edgeTypes}
+              fitView
+              minZoom={0.2}
+              maxZoom={2.0}
+              defaultEdgeOptions={{ animated: true }}
+              className="bg-[#080b11]"
+            >
+              <Background color="#1e293b" gap={24} size={1} variant={BackgroundVariant.Dots} />
+              <Controls className="bg-slate-900 border border-slate-800 text-slate-200 rounded-lg overflow-hidden" />
+            </ReactFlow>
+          </>
+        ) : activeApp === 'saas' ? (
+          <ApexRoiAppView />
         ) : (
           <div className="flex flex-row w-full h-full bg-[#262421] overflow-hidden select-none">
             {/* 170px Left Sidebar */}

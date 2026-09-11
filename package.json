@@ -4,7 +4,7 @@
   "description": "Synapse: The Constitutional Visual IDE & Blueprint Engine for Next.js",
   "private": true,
   "scripts": {
-    "dev": "next dev --port 3000",
+    "dev": "next dev --port 3000 -H 0.0.0.0",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

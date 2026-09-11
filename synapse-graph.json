@@ -1,0 +1,492 @@
+{
+  "version": "2.0.0",
+  "activeApp": "apex-roi-saas",
+  "subgraphs": {
+    "root": {
+      "id": "root",
+      "title": "Studio Root"
+    },
+    "cost-engine": {
+      "id": "cost-engine",
+      "title": "Cloud Cost & ROI Engine",
+      "parentId": "root"
+    }
+  },
+  "nodes": [
+    {
+      "id": "n-tier-data",
+      "type": "codeSnippet",
+      "position": {
+        "x": 64,
+        "y": 80
+      },
+      "data": {
+        "id": "n-tier-data",
+        "domain": "saas",
+        "module": "billing",
+        "action": "get-tiers",
+        "title": "Cloud Pricing Tiers",
+        "category": "state",
+        "isExpanded": true,
+        "subgraphId": "root",
+        "inputs": [],
+        "outputs": [
+          {
+            "id": "out-tiers",
+            "name": "out.tiers",
+            "typeSchema": "z.array(z.any())",
+            "direction": "out"
+          }
+        ],
+        "code": "import { z } from \"zod\";\nexport const input = z.void(), output = z.array(z.any());\n\nexport function getPricingTiers() {\n  return [\n    { id: \"starter\", name: \"Starter Launch\", base: 29, userFee: 5, serverFee: 12 },\n    { id: \"growth\", name: \"Scale Growth\", base: 99, userFee: 4, serverFee: 10 },\n    { id: \"enterprise\", name: \"Apex Enterprise\", base: 299, userFee: 3, serverFee: 8 }\n  ];\n}",
+        "ruleMetrics": {
+          "lines": 9,
+          "maxLines": 50,
+          "statements": 2,
+          "maxStatements": 40,
+          "maxCharsPerLine": 86,
+          "hasMutation": false,
+          "hasThis": false,
+          "hasThrow": false,
+          "status": "verified",
+          "violations": []
+        }
+      }
+    },
+    {
+      "id": "n-user-params",
+      "type": "codeSnippet",
+      "position": {
+        "x": 64,
+        "y": 528
+      },
+      "data": {
+        "id": "n-user-params",
+        "domain": "saas",
+        "module": "inputs",
+        "action": "get-inputs",
+        "title": "Usage Parameters",
+        "category": "state",
+        "isExpanded": true,
+        "subgraphId": "root",
+        "inputs": [],
+        "outputs": [
+          {
+            "id": "out-params",
+            "name": "out.params",
+            "typeSchema": "z.object({ users: z.number(), servers: z.number(), selectedTier: z.string(), annual: z.boolean() })",
+            "direction": "out"
+          }
+        ],
+        "code": "import { z } from \"zod\";\nexport const input = z.void(), output = z.object({ users: z.number(), servers: z.number(), selectedTier: z.string(), annual: z.boolean() });\n\nexport function getInitialUsage() {\n  return { users: 35, servers: 12, selectedTier: \"growth\", annual: true };\n}",
+        "ruleMetrics": {
+          "lines": 6,
+          "maxLines": 50,
+          "statements": 2,
+          "maxStatements": 40,
+          "maxCharsPerLine": 90,
+          "hasMutation": false,
+          "hasThis": false,
+          "hasThrow": false,
+          "status": "verified",
+          "violations": []
+        }
+      }
+    },
+    {
+      "id": "n-cost-engine",
+      "type": "codeSnippet",
+      "position": {
+        "x": 1104,
+        "y": 80
+      },
+      "data": {
+        "id": "n-cost-engine",
+        "domain": "saas",
+        "module": "engine",
+        "action": "calc-roi",
+        "title": "Cloud Cost & ROI Engine",
+        "category": "compound",
+        "isExpanded": false,
+        "subgraphId": "root",
+        "isCompound": true,
+        "targetSubgraphId": "cost-engine",
+        "collapsedChildCount": 3,
+        "inputs": [
+          {
+            "id": "in-tiers",
+            "name": "in.tiers",
+            "typeSchema": "z.array(z.any())",
+            "direction": "in"
+          },
+          {
+            "id": "in-params",
+            "name": "in.params",
+            "typeSchema": "z.object({ users: z.number(), servers: z.number(), selectedTier: z.string(), annual: z.boolean() })",
+            "direction": "in"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "out-roi",
+            "name": "out.roi",
+            "typeSchema": "z.object({ monthly: z.number(), annual: z.number(), savings: z.number(), roi: z.number() })",
+            "direction": "out"
+          }
+        ],
+        "code": "import { z } from \"zod\";\nexport const input = z.any(), output = z.object({ monthly: z.number(), annual: z.number(), savings: z.number(), roi: z.number() });\n\n// Composite Subgraph Node: Double-click to inspect 3 internal micro-nodes\nexport function calculateROI(tiers: any[], params: any) {\n  return { monthly: 247, annual: 2964, savings: 44436, roi: 1499 };\n}",
+        "ruleMetrics": {
+          "lines": 6,
+          "maxLines": 50,
+          "statements": 2,
+          "maxStatements": 40,
+          "maxCharsPerLine": 75,
+          "hasMutation": false,
+          "hasThis": false,
+          "hasThrow": false,
+          "status": "verified",
+          "violations": []
+        }
+      }
+    },
+    {
+      "id": "n-metrics-ui",
+      "type": "codeSnippet",
+      "position": {
+        "x": 1616,
+        "y": 80
+      },
+      "data": {
+        "id": "n-metrics-ui",
+        "domain": "saas",
+        "module": "ui",
+        "action": "render-metrics",
+        "title": "ROI KPI Metric Cards",
+        "category": "ui",
+        "isExpanded": true,
+        "subgraphId": "root",
+        "inputs": [
+          {
+            "id": "in-roi",
+            "name": "in.roi",
+            "typeSchema": "z.object({ monthly: z.number(), annual: z.number(), savings: z.number(), roi: z.number() })",
+            "direction": "in"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "out-vdom",
+            "name": "out.vdom",
+            "typeSchema": "z.array(z.any())",
+            "direction": "out"
+          }
+        ],
+        "code": "import { z } from \"zod\";\nexport const input = z.object({ monthly: z.number(), annual: z.number(), savings: z.number(), roi: z.number() }), output = z.array(z.any());\n\nexport function renderROIMetrics(data: any) {\n  return [\n    { label: \"Monthly Investment\", val: \"$\" + data.monthly, badge: \"Active Bill\", color: \"text-amber-400\" },\n    { label: \"Annual Commitment\", val: \"$\" + data.annual, badge: \"-20% Auto-Applied\", color: \"text-orange-400\" },\n    { label: \"Net Annual Savings\", val: \"$\" + data.savings.toLocaleString(), badge: \"Labor Reclaimed\", color: \"text-emerald-400\" },\n    { label: \"Projected ROI\", val: data.roi + \"%\", badge: \"Payback < 2 Mo\", color: \"text-lime-400\" }\n  ];\n}",
+        "ruleMetrics": {
+          "lines": 10,
+          "maxLines": 50,
+          "statements": 2,
+          "maxStatements": 40,
+          "maxCharsPerLine": 110,
+          "hasMutation": false,
+          "hasThis": false,
+          "hasThrow": false,
+          "status": "verified",
+          "violations": []
+        }
+      }
+    },
+    {
+      "id": "n-tier-picker-ui",
+      "type": "codeSnippet",
+      "position": {
+        "x": 1616,
+        "y": 544
+      },
+      "data": {
+        "id": "n-tier-picker-ui",
+        "domain": "saas",
+        "module": "ui",
+        "action": "render-picker",
+        "title": "Interactive Tier Selector",
+        "category": "ui",
+        "isExpanded": true,
+        "subgraphId": "root",
+        "inputs": [
+          {
+            "id": "in-tiers",
+            "name": "in.tiers",
+            "typeSchema": "z.array(z.any())",
+            "direction": "in"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "out-vdom",
+            "name": "out.vdom",
+            "typeSchema": "z.array(z.any())",
+            "direction": "out"
+          }
+        ],
+        "code": "import { z } from \"zod\";\nexport const input = z.any(), output = z.array(z.any());\n\nexport function renderTierPicker(tiers: any[], activeId: string) {\n  return tiers.map(tier => ({\n    id: tier.id,\n    name: tier.name,\n    baseMonthly: \"$\" + tier.base,\n    isSelected: tier.id === activeId,\n    highlight: tier.id === \"growth\"\n  }));\n}",
+        "ruleMetrics": {
+          "lines": 11,
+          "maxLines": 50,
+          "statements": 2,
+          "maxStatements": 40,
+          "maxCharsPerLine": 66,
+          "hasMutation": false,
+          "hasThis": false,
+          "hasThrow": false,
+          "status": "verified",
+          "violations": []
+        }
+      }
+    },
+    {
+      "id": "n-sub-discount",
+      "type": "codeSnippet",
+      "position": {
+        "x": 64,
+        "y": 80
+      },
+      "data": {
+        "id": "n-sub-discount",
+        "domain": "saas/engine",
+        "module": "pricing",
+        "action": "apply-discount",
+        "title": "Annual 20% Discount Formula",
+        "category": "transform",
+        "isExpanded": true,
+        "subgraphId": "cost-engine",
+        "inputs": [
+          {
+            "id": "in-raw",
+            "name": "in.rawMonthly",
+            "typeSchema": "z.number()",
+            "direction": "in"
+          },
+          {
+            "id": "in-annual",
+            "name": "in.annual",
+            "typeSchema": "z.boolean()",
+            "direction": "in"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "out-effective",
+            "name": "out.effective",
+            "typeSchema": "z.number()",
+            "direction": "out"
+          }
+        ],
+        "code": "import { z } from \"zod\";\nexport const input = z.object({ raw: z.number(), annual: z.boolean() }), output = z.number();\n\nexport function applyDiscount(raw: number, isAnnual: boolean): number {\n  return isAnnual ? Math.round(raw * 0.8) : raw;\n}",
+        "ruleMetrics": {
+          "lines": 5,
+          "maxLines": 50,
+          "statements": 2,
+          "maxStatements": 40,
+          "maxCharsPerLine": 70,
+          "hasMutation": false,
+          "hasThis": false,
+          "hasThrow": false,
+          "status": "verified",
+          "violations": []
+        }
+      }
+    },
+    {
+      "id": "n-sub-savings",
+      "type": "codeSnippet",
+      "position": {
+        "x": 576,
+        "y": 80
+      },
+      "data": {
+        "id": "n-sub-savings",
+        "domain": "saas/engine",
+        "module": "analytics",
+        "action": "calc-savings",
+        "title": "Labor Hours Reclaimed Formula",
+        "category": "logic",
+        "isExpanded": true,
+        "subgraphId": "cost-engine",
+        "inputs": [
+          {
+            "id": "in-users",
+            "name": "in.users",
+            "typeSchema": "z.number()",
+            "direction": "in"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "out-savings",
+            "name": "out.savings",
+            "typeSchema": "z.number()",
+            "direction": "out"
+          }
+        ],
+        "code": "import { z } from \"zod\";\nexport const input = z.number(), output = z.number();\n\nexport function calcLaborSavings(usersCount: number): number {\n  const hoursSavedMonthly = usersCount * 3.5;\n  const dollarRatePerHour = 60;\n  return Math.round(hoursSavedMonthly * dollarRatePerHour * 12);\n}",
+        "ruleMetrics": {
+          "lines": 7,
+          "maxLines": 50,
+          "statements": 4,
+          "maxStatements": 40,
+          "maxCharsPerLine": 70,
+          "hasMutation": false,
+          "hasThis": false,
+          "hasThrow": false,
+          "status": "verified",
+          "violations": []
+        }
+      }
+    },
+    {
+      "id": "n-sub-roi",
+      "type": "codeSnippet",
+      "position": {
+        "x": 1104,
+        "y": 80
+      },
+      "data": {
+        "id": "n-sub-roi",
+        "domain": "saas/engine",
+        "module": "analytics",
+        "action": "calc-roi-percent",
+        "title": "Net ROI Percentage Reducer",
+        "category": "logic",
+        "isExpanded": true,
+        "subgraphId": "cost-engine",
+        "inputs": [
+          {
+            "id": "in-cost",
+            "name": "in.annualCost",
+            "typeSchema": "z.number()",
+            "direction": "in"
+          },
+          {
+            "id": "in-gross",
+            "name": "in.grossSavings",
+            "typeSchema": "z.number()",
+            "direction": "in"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "out-percent",
+            "name": "out.roiPercent",
+            "typeSchema": "z.number()",
+            "direction": "out"
+          }
+        ],
+        "code": "import { z } from \"zod\";\nexport const input = z.object({ cost: z.number(), savings: z.number() }), output = z.number();\n\nexport function calcROIPercent(annualCost: number, grossSavings: number): number {\n  const netSavings = grossSavings - annualCost;\n  return Math.round((netSavings / annualCost) * 100);\n}",
+        "ruleMetrics": {
+          "lines": 6,
+          "maxLines": 50,
+          "statements": 3,
+          "maxStatements": 40,
+          "maxCharsPerLine": 70,
+          "hasMutation": false,
+          "hasThis": false,
+          "hasThrow": false,
+          "status": "verified",
+          "violations": []
+        }
+      }
+    }
+  ],
+  "wires": [
+    {
+      "id": "w-tier-engine",
+      "source": "n-tier-data",
+      "sourceHandle": "out-tiers",
+      "target": "n-cost-engine",
+      "targetHandle": "in-tiers",
+      "type": "zodWire",
+      "animated": true,
+      "data": {
+        "contract": "z.array(z.any())",
+        "sourceSchema": "z.array(z.any())",
+        "targetSchema": "z.array(z.any())",
+        "status": "compatible"
+      }
+    },
+    {
+      "id": "w-params-engine",
+      "source": "n-user-params",
+      "sourceHandle": "out-params",
+      "target": "n-cost-engine",
+      "targetHandle": "in-params",
+      "type": "zodWire",
+      "animated": true,
+      "data": {
+        "contract": "z.object({...})",
+        "sourceSchema": "z.object({...})",
+        "targetSchema": "z.object({...})",
+        "status": "compatible"
+      }
+    },
+    {
+      "id": "w-engine-metrics",
+      "source": "n-cost-engine",
+      "sourceHandle": "out-roi",
+      "target": "n-metrics-ui",
+      "targetHandle": "in-roi",
+      "type": "zodWire",
+      "animated": true,
+      "data": {
+        "contract": "z.object({...})",
+        "sourceSchema": "z.object({...})",
+        "targetSchema": "z.object({...})",
+        "status": "compatible"
+      }
+    },
+    {
+      "id": "w-tier-picker",
+      "source": "n-tier-data",
+      "sourceHandle": "out-tiers",
+      "target": "n-tier-picker-ui",
+      "targetHandle": "in-tiers",
+      "type": "zodWire",
+      "animated": true,
+      "data": {
+        "contract": "z.array(z.any())",
+        "sourceSchema": "z.array(z.any())",
+        "targetSchema": "z.array(z.any())",
+        "status": "compatible"
+      }
+    },
+    {
+      "id": "w-sub-discount-roi",
+      "source": "n-sub-discount",
+      "sourceHandle": "out-effective",
+      "target": "n-sub-roi",
+      "targetHandle": "in-cost",
+      "type": "zodWire",
+      "animated": true,
+      "data": {
+        "contract": "z.number()",
+        "sourceSchema": "z.number()",
+        "targetSchema": "z.number()",
+        "status": "compatible"
+      }
+    },
+    {
+      "id": "w-sub-savings-roi",
+      "source": "n-sub-savings",
+      "sourceHandle": "out-savings",
+      "target": "n-sub-roi",
+      "targetHandle": "in-gross",
+      "type": "zodWire",
+      "animated": true,
+      "data": {
+        "contract": "z.number()",
+        "sourceSchema": "z.number()",
+        "targetSchema": "z.number()",
+        "status": "compatible"
+      }
+    }
+  ]
+}

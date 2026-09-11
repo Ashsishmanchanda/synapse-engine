@@ -49,6 +49,8 @@ export interface CodeSnippetNodeData extends Record<string, unknown> {
   outputs: PortDefinition[];
   ruleMetrics: NodeRuleMetrics;
   subgraphId?: string;
+  isCompound?: boolean;
+  targetSubgraphId?: string;
   collapsedChildCount?: number;
   onCodeChange?: (id: string, newCode: string) => void;
   onToggleExpand?: (id: string) => void;

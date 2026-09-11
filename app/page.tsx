@@ -15,7 +15,7 @@ import '@xyflow/react/dist/style.css';
 import { CodeSnippetNode } from '../src/components/Nodes/CodeSnippetNode';
 import { ZodWireEdge } from '../src/components/Edges/ZodWireEdge';
 import { evaluateNodeWithLisp } from '../src/core/lisp/constitutionalRulebook';
-import { ApexRoiAppView } from '../src/components/Apps/ApexRoiAppView';
+import { LiveGraphRuntime } from '../src/components/Runtime/LiveGraphRuntime';
 
 const nodeTypes = {
   codeSnippet: CodeSnippetNode,
@@ -305,65 +305,9 @@ const INITIAL_EDGES = [
 export default function SynapseStudioPage() {
   const [viewMode, setViewMode] = useState<'canvas' | 'live'>('canvas');
 
-  // Interactive Live Chess State (React 19)
-  const [gameState, setGameState] = useState({
-    board: [
-      ["bR","bN","bB","bQ","bK","bB","bN","bR"],
-      ["bP","bP","bP","bP","bP","bP","bP","bP"],
-      ["","","","","","","",""],
-      ["","","","","","","",""],
-      ["","","","","","","",""],
-      ["","","","","","","",""],
-      ["wP","wP","wP","wP","wP","wP","wP","wP"],
-      ["wR","wN","wB","wQ","wK","wB","wN","wR"]
-    ],
-    selected: null as string | null,
-    turn: 'w',
-    moves: [] as string[]
-  });
-
-  const handleSquareClick = (r: number, c: number) => {
-    const pos = String.fromCharCode(97 + c) + (8 - r);
-    const sel = gameState.selected;
-
-    if (!sel) {
-      if (gameState.board[r][c]) {
-        setGameState(prev => ({ ...prev, selected: pos }));
-      }
-      return;
-    }
-
-    if (sel === pos) {
-      setGameState(prev => ({ ...prev, selected: null }));
-      return;
-    }
-
-    const [fr, fc] = [8 - parseInt(sel[1]), sel.charCodeAt(0) - 97];
-    const piece = gameState.board[fr][fc];
-    if (!piece) {
-      setGameState(prev => ({ ...prev, selected: pos }));
-      return;
-    }
-
-    const nextBoard = gameState.board.map((row, rowIdx) =>
-      row.map((sq, colIdx) => {
-        if (rowIdx === r && colIdx === c) return piece;
-        if (rowIdx === fr && colIdx === fc) return "";
-        return sq;
-      })
-    );
-
-    setGameState(prev => ({
-      board: nextBoard,
-      selected: null,
-      turn: prev.turn === 'w' ? 'b' : 'w',
-      moves: [...prev.moves, `${sel} → ${pos}`]
-    }));
-  };
-
   const [isExporting, setIsExporting] = useState(false);
   const [exportNotice, setExportNotice] = useState<string | null>(null);
-  const [activeApp, setActiveApp] = useState<'saas' | 'chess'>('saas');
+  const [activeApp, setActiveApp] = useState<'active' | 'chess'>('active');
 
   // Multi-Level Subgraph Breadcrumbs
   const [breadcrumbs, setBreadcrumbs] = useState<Array<{ id: string; title: string }>>([
@@ -535,17 +479,17 @@ export default function SynapseStudioPage() {
           <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 p-0.5 rounded-lg text-[11px] font-mono">
             <button
               onClick={() => {
-                setActiveApp('saas');
+                setActiveApp('active');
                 setBreadcrumbs([{ id: 'root', title: 'Studio Root' }]);
                 handleSyncGraph();
               }}
               className={`px-3 py-1 rounded-md font-bold transition-all ${
-                activeApp === 'saas'
+                activeApp !== 'chess'
                   ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 shadow'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              Apex ROI SaaS
+              Active Blueprint
             </button>
             <button
               onClick={() => {
@@ -566,7 +510,7 @@ export default function SynapseStudioPage() {
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              Walnut Chess
+              Walnut Chess Demo
             </button>
           </div>
           <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
@@ -659,131 +603,16 @@ export default function SynapseStudioPage() {
               <Controls className="bg-slate-900 border border-slate-800 text-slate-200 rounded-lg overflow-hidden" />
             </ReactFlow>
           </>
-        ) : activeApp === 'saas' ? (
-          <ApexRoiAppView />
         ) : (
-          <div className="flex flex-row w-full h-full bg-[#262421] overflow-hidden select-none">
-            {/* 170px Left Sidebar */}
-            <aside className="w-[170px] min-w-[170px] bg-[#f8f9fa] border-r border-[#e5e7eb] flex flex-col justify-between p-3 text-[#262421]">
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-2 px-2 py-3 font-black text-lg tracking-tight">
-                  <span className="text-[#81b64c]">♟</span>
-                  <span>Chess.com</span>
-                </div>
-                {["Play", "Puzzles", "Learn", "Train", "Watch", "Community"].map((item, idx) => (
-                  <button
-                    key={item}
-                    className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-bold transition-colors ${
-                      idx === 0 ? 'bg-[#e5e7eb] text-black' : 'text-[#4b5563] hover:bg-[#f3f4f6]'
-                    }`}
-                  >
-                    <span>{idx === 0 ? "♟" : "🧩"}</span>
-                    <span>{item}</span>
-                  </button>
-                ))}
-              </div>
-              <div className="pt-2 border-t border-slate-200 text-xs font-bold text-slate-600 flex items-center gap-2 px-2">
-                <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center">👤</div>
-                <span>zemma_6</span>
-              </div>
-            </aside>
-
-            {/* Center Stage: Walnut Chessboard */}
-            <section className="flex-1 flex flex-col items-center justify-center p-4 bg-[#2b2724] relative">
-              <div className="w-full max-w-[640px] flex items-center justify-between text-white text-xs font-bold py-1 px-2">
-                <span>♟ Endspiel1313 (888) 🇺🇦</span>
-                <span className="bg-[#1e1c18] px-3 py-1 rounded font-mono">5:00</span>
-              </div>
-
-              {/* 8x8 Walnut Board Grid */}
-              <div
-                className="w-full max-w-[640px] aspect-square relative shadow-2xl rounded-sm overflow-hidden"
-                style={{
-                  backgroundImage: "url('/assets/walnut_board.png')",
-                  backgroundSize: "100% 100%"
-                }}
-              >
-                <div className="grid grid-cols-8 grid-rows-8 w-full h-full">
-                  {gameState.board.map((row, r) =>
-                    row.map((piece, c) => {
-                      const pos = String.fromCharCode(97 + c) + (8 - r);
-                      const isSelected = gameState.selected === pos;
-                      const isDark = (r + c) % 2 === 1;
-                      const coordColor = isDark ? "hsl(36, 40%, 80%)" : "hsl(30, 30%, 40%)";
-
-                      return (
-                        <div
-                          key={pos}
-                          onClick={() => handleSquareClick(r, c)}
-                          className={`relative flex items-center justify-center cursor-pointer transition-colors ${
-                            isSelected ? 'bg-yellow-400/70' : 'hover:bg-yellow-400/20'
-                          }`}
-                        >
-                          {c === 0 && (
-                            <span
-                              className="absolute top-0.5 left-1 text-[11px] font-black pointer-events-none select-none"
-                              style={{ color: coordColor }}
-                            >
-                              {8 - r}
-                            </span>
-                          )}
-                          {r === 7 && (
-                            <span
-                              className="absolute bottom-0.5 right-1 text-[11px] font-black pointer-events-none select-none"
-                              style={{ color: coordColor }}
-                            >
-                              {String.fromCharCode(97 + c)}
-                            </span>
-                          )}
-                          {piece && (
-                            <img
-                              src={`/assets/pieces/${piece}.svg`}
-                              alt={piece}
-                              className="w-[85%] h-[85%] object-contain pointer-events-none drop-shadow"
-                            />
-                          )}
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-
-              <div className="w-full max-w-[640px] flex items-center justify-between text-white text-xs font-bold py-1 px-2">
-                <span>♟ zemma_6 (912) 🇮🇳</span>
-                <span className="bg-white text-black px-3 py-1 rounded font-mono font-black">🕒 5:00</span>
-              </div>
-            </section>
-
-            {/* 320px Right Analysis Panel */}
-            <aside className="w-[320px] min-w-[320px] bg-white border-l border-slate-200 flex flex-col justify-between text-slate-800 shadow-xl">
-              <div>
-                <div className="flex border-b border-slate-200 text-xs font-bold bg-slate-50">
-                  <div className="flex-1 py-3 text-center border-b-2 border-[#81b64c] text-black">⚡ Analysis</div>
-                  <div className="flex-1 py-3 text-center text-slate-500">+ New Game</div>
-                  <div className="flex-1 py-3 text-center text-slate-500">🏁 Games</div>
-                </div>
-                <div className="p-3 border-b border-slate-100 flex justify-between text-xs font-bold text-slate-500 bg-slate-50/50">
-                  <span>⚡ Analysis</span>
-                  <span>Stockfish 16 Lite ⚙</span>
-                </div>
-                <div className="p-4 flex flex-col gap-2 max-h-[400px] overflow-y-auto">
-                  <div className="text-xs font-bold text-slate-400">Starting Position</div>
-                  {gameState.moves.map((move, idx) => (
-                    <div key={idx} className="text-xs font-black text-slate-700 bg-slate-100 px-2 py-1 rounded">
-                      {idx + 1}. {move}
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="p-3 border-t border-slate-200 flex justify-around text-slate-600 text-xs font-bold bg-slate-50">
-                <button className="px-3 py-1 bg-white border border-slate-200 rounded hover:bg-slate-100">|◀</button>
-                <button className="px-3 py-1 bg-white border border-slate-200 rounded hover:bg-slate-100">◀</button>
-                <button className="px-3 py-1 bg-white border border-slate-200 rounded hover:bg-slate-100">▶</button>
-                <button className="px-3 py-1 bg-white border border-slate-200 rounded hover:bg-slate-100">▶|</button>
-              </div>
-            </aside>
-          </div>
+          <LiveGraphRuntime
+            appName={activeApp === 'chess' ? 'walnut-chess-demo' : 'active-blueprint'}
+            nodes={nodes}
+            wires={edges}
+            onExport={handleExportApp}
+            isExporting={isExporting}
+            exportNotice={exportNotice}
+            onSync={handleSyncGraph}
+          />
         )}
       </main>
     </div>

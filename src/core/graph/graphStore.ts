@@ -262,6 +262,9 @@ export function upsertGraphNode(nodeInput: {
   outputs?: any[];
   isExpanded?: boolean;
   subgraphId?: string;
+  isCompound?: boolean;
+  targetSubgraphId?: string;
+  collapsedChildCount?: number;
 }): { node: SynapseGraphNode; graph: SynapseGraph } {
   const graph = loadGraphFromDisk();
   const category = nodeInput.category || 'transform';
@@ -281,6 +284,9 @@ export function upsertGraphNode(nodeInput: {
     inputs: nodeInput.inputs || [],
     outputs: nodeInput.outputs || [],
     subgraphId: nodeInput.subgraphId || 'root',
+    isCompound: nodeInput.isCompound,
+    targetSubgraphId: nodeInput.targetSubgraphId,
+    collapsedChildCount: nodeInput.collapsedChildCount,
     ruleMetrics
   };
 

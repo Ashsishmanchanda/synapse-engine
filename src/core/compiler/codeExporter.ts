@@ -194,14 +194,48 @@ ${cleanedCode}
     fs.writeFileSync(nodeFilePath, componentFileContent, 'utf-8');
     filesGenerated.push(`components/nodes/${compName}.tsx`);
 
+    const fnMatch = cleanedCode.match(/export\s+function\s+([a-zA-Z0-9_]+)/);
+    const primaryFn = fnMatch ? fnMatch[1] : null;
+
     componentImports.push(`import * as ${compName} from '@/components/nodes/${compName}';`);
     componentUsages.push(`        {/* ${node.data.title} (${node.id}) */}
-        <section className="p-4 rounded-xl border border-slate-800 bg-[#0d121d]">
-          <div className="text-xs font-mono text-orange-400 uppercase tracking-wider mb-2">
-            ${node.data.title}
+        <section key="${node.id}" className="p-4 rounded-xl border border-slate-800 bg-[#0d121d] flex flex-col gap-2">
+          <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+            <span className="text-xs font-mono text-amber-400 font-bold uppercase tracking-wider">
+              ${node.data.title}
+            </span>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900 text-slate-400 border border-slate-800">
+              ${node.data.category}
+            </span>
           </div>
-          <div className="text-sm text-slate-300">
-            Node mounted. Category: <span className="font-semibold text-amber-400">${node.data.category}</span>
+
+          <div className="text-xs font-mono text-slate-200">
+            {(() => {
+              try {
+                ${primaryFn ? `
+                if (typeof ${compName}.${primaryFn} === 'function') {
+                  const out = ${compName}.${primaryFn}();
+                  if (React.isValidElement(out)) return out;
+                  if (typeof out === 'object' && out !== null) {
+                    return (
+                      <pre className="p-3 bg-slate-950/80 rounded-lg border border-slate-800/80 text-[11px] overflow-auto text-emerald-400">
+                        {JSON.stringify(out, null, 2)}
+                      </pre>
+                    );
+                  }
+                  return <div className="text-slate-300 font-mono">{String(out ?? 'Node executed')}</div>;
+                }
+                ` : `
+                if (typeof ${compName}.default === 'function') {
+                  const Comp = (${compName} as any).default;
+                  return <Comp />;
+                }
+                `}
+                return <div className="text-slate-500 italic">Mounted (${node.data.category})</div>;
+              } catch (err: any) {
+                return <div className="text-rose-400 font-mono text-xs">Runtime Error: {err.message}</div>;
+              }
+            })()}
           </div>
         </section>`);
   });

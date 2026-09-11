@@ -5,7 +5,21 @@ import { evaluateNodeWithLisp } from '../../../src/core/lisp/constitutionalRuleb
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { id, domain, module, action, title, category = 'transform', code, inputs = [], outputs = [] } = body;
+    const { 
+      id, 
+      domain, 
+      module, 
+      action, 
+      title, 
+      category = 'transform', 
+      code, 
+      inputs = [], 
+      outputs = [], 
+      subgraphId, 
+      isCompound, 
+      targetSubgraphId, 
+      collapsedChildCount 
+    } = body;
 
     if (!id || typeof id !== 'string') {
       return NextResponse.json(
@@ -45,7 +59,11 @@ export async function POST(request: Request) {
       category,
       code,
       inputs,
-      outputs
+      outputs,
+      subgraphId,
+      isCompound,
+      targetSubgraphId,
+      collapsedChildCount
     });
 
     return NextResponse.json(

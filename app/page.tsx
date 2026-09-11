@@ -308,6 +308,8 @@ export default function SynapseStudioPage() {
   const [isExporting, setIsExporting] = useState(false);
   const [exportNotice, setExportNotice] = useState<string | null>(null);
   const [activeApp, setActiveApp] = useState<'active' | 'chess'>('active');
+  const [projects, setProjects] = useState<Array<{ id: string; name: string; port: number; status: string }>>([]);
+  const [activeProjectId, setActiveProjectIdState] = useState<string>('default');
 
   // Multi-Level Subgraph Breadcrumbs
   const [breadcrumbs, setBreadcrumbs] = useState<Array<{ id: string; title: string }>>([
@@ -366,29 +368,69 @@ export default function SynapseStudioPage() {
     return edges.filter(e => visibleIds.has(e.source) && visibleIds.has(e.target));
   }, [edges, activeApp, visibleNodes]);
 
-  const handleSyncGraph = async () => {
+  const handleSyncGraph = async (overrideProjId?: string) => {
     try {
+      // 1. Fetch projects
+      const projRes = await fetch('/api/projects');
+      const projData = await projRes.json();
+      if (projData.success && Array.isArray(projData.projects)) {
+        setProjects(projData.projects);
+        const pid = overrideProjId || projData.activeProjectId || 'default';
+        setActiveProjectIdState(pid);
+
+        // Fetch blueprint for selected project
+        const bpRes = await fetch(`/api/projects/${pid}/blueprint`);
+        const bpData = await bpRes.json();
+        if (bpData.success && bpData.graph?.nodes?.length > 0) {
+          setNodes(bpData.graph.nodes);
+          setEdges(bpData.graph.wires || []);
+          return;
+        }
+      }
+
+      // Fallback to /api/graph
       const res = await fetch('/api/graph');
       const data = await res.json();
       if (data.success && data.graph?.nodes?.length > 0) {
         setNodes(data.graph.nodes);
-        setEdges(data.graph.wires);
+        setEdges(data.graph.wires || []);
       }
     } catch (err) {
       console.warn('Sync failed, keeping canvas state:', err);
     }
   };
 
+  const handleSwitchProject = async (newProjectId: string) => {
+    try {
+      await fetch('/api/projects/active', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: newProjectId })
+      });
+      await handleSyncGraph(newProjectId);
+    } catch (err) {
+      console.error('Failed to switch project:', err);
+    }
+  };
+
   const handleExportApp = async () => {
     setIsExporting(true);
     try {
-      const res = await fetch('/api/export', { method: 'POST' });
+      const res = await fetch(`/api/projects/${activeProjectId}/build`, { method: 'POST' });
       const data = await res.json();
       if (data.success) {
-        setExportNotice(`Application exported to: ${data.result.exportPath}`);
+        setExportNotice(`App [${activeProjectId}] synthesized to: ${data.exportPath}`);
         setTimeout(() => setExportNotice(null), 6000);
       } else {
-        alert(`Export failed: ${data.message || 'Unknown error'}`);
+        // Fallback to general export
+        const fbRes = await fetch('/api/export', { method: 'POST' });
+        const fbData = await fbRes.json();
+        if (fbData.success) {
+          setExportNotice(`Application exported to: ${fbData.result.exportPath}`);
+          setTimeout(() => setExportNotice(null), 6000);
+        } else {
+          alert(`Export failed: ${data.message || fbData.message || 'Unknown error'}`);
+        }
       }
     } catch (err: any) {
       alert(`Export error: ${err.message}`);
@@ -436,6 +478,22 @@ export default function SynapseStudioPage() {
 
         {/* View Switcher & Export Next.js 15 Button */}
         <div className="flex items-center gap-3">
+          {projects.length > 0 && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-900 border border-slate-800 rounded-lg text-xs font-mono">
+              <span className="text-amber-400 font-bold">Project:</span>
+              <select
+                value={activeProjectId}
+                onChange={(e) => handleSwitchProject(e.target.value)}
+                className="bg-transparent text-slate-200 border-none outline-none font-mono cursor-pointer text-xs"
+              >
+                {projects.map(p => (
+                  <option key={p.id} value={p.id} className="bg-slate-900 text-slate-200">
+                    {p.name} (:{p.port})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <button
             onClick={handleExportApp}
             disabled={isExporting}
@@ -548,7 +606,7 @@ export default function SynapseStudioPage() {
             </div>
           )}
           <button 
-            onClick={handleSyncGraph} 
+            onClick={() => handleSyncGraph()} 
             className="flex items-center gap-1.5 hover:text-amber-400 transition-colors font-mono text-[11px]"
             title="Reload blueprint topology from synapse-graph.json"
           >
@@ -611,7 +669,7 @@ export default function SynapseStudioPage() {
             onExport={handleExportApp}
             isExporting={isExporting}
             exportNotice={exportNotice}
-            onSync={handleSyncGraph}
+            onSync={() => handleSyncGraph()}
           />
         )}
       </main>

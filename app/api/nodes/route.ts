@@ -18,7 +18,8 @@ export async function POST(request: Request) {
       subgraphId, 
       isCompound, 
       targetSubgraphId, 
-      collapsedChildCount 
+      collapsedChildCount,
+      runtimeTarget
     } = body;
 
     if (!id || typeof id !== 'string') {
@@ -63,7 +64,8 @@ export async function POST(request: Request) {
       subgraphId,
       isCompound,
       targetSubgraphId,
-      collapsedChildCount
+      collapsedChildCount,
+      runtimeTarget
     });
 
     return NextResponse.json(

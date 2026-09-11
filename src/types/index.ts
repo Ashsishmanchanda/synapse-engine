@@ -52,6 +52,7 @@ export interface CodeSnippetNodeData extends Record<string, unknown> {
   isCompound?: boolean;
   targetSubgraphId?: string;
   collapsedChildCount?: number;
+  runtimeTarget?: 'client' | 'server';
   onCodeChange?: (id: string, newCode: string) => void;
   onToggleExpand?: (id: string) => void;
   onDrillDown?: (subgraphId: string, title: string) => void;
@@ -95,4 +96,35 @@ export interface SynapseGraph {
   subgraphs: Record<string, { id: string; title: string; parentId?: string }>;
   nodes: SynapseGraphNode[];
   wires: WireDefinition[];
+}
+
+export interface ProjectMetadata {
+  id: string;
+  name: string;
+  description?: string;
+  createdAt: string;
+  updatedAt: string;
+  port: number;
+  status: 'stopped' | 'running' | 'building' | 'error';
+  pid?: number;
+}
+
+export interface ProjectManifest {
+  name: string;
+  version: string;
+  dependencies: Record<string, string>;
+  devDependencies?: Record<string, string>;
+  env?: Record<string, string>;
+  entryNodeId?: string;
+  allocatedPort?: number;
+}
+
+export interface ProjectProcessStatus {
+  id: string;
+  status: 'stopped' | 'running' | 'building' | 'error';
+  port: number;
+  pid?: number;
+  uptime?: number;
+  url?: string;
+  lastError?: string;
 }

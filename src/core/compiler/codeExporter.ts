@@ -1,6 +1,14 @@
 import fs from 'fs';
 import path from 'path';
-import { SynapseGraph, SynapseGraphNode, WireDefinition } from '../../types';
+import { SynapseGraph, ProjectManifest } from '../../types';
+import { getProjectDir, getProjectManifest, getProjectEnv, getAssetsDir } from '../projects/projectManager';
+
+export interface ExportOptions {
+  targetDir?: string;
+  targetDirName?: string;
+  projectId?: string;
+  manifest?: ProjectManifest;
+}
 
 export interface ExportResult {
   success: boolean;
@@ -24,27 +32,57 @@ export function toComponentName(nodeId: string): string {
 /**
  * Synthesizes an independent, standalone Next.js 15 App Router codebase from a SynapseGraph.
  */
-export function exportNextjsApp(graph: SynapseGraph, targetDirName?: string): ExportResult {
-  const appSlug = (targetDirName || graph.activeApp || 'synapse-exported-app')
+export function exportNextjsApp(
+  graph: SynapseGraph,
+  targetOrOptions?: string | ExportOptions
+): ExportResult {
+  let targetDir: string | undefined;
+  let projectId: string | undefined;
+  let customManifest: ProjectManifest | undefined;
+
+  if (typeof targetOrOptions === 'string') {
+    targetDir = path.join(process.cwd(), 'exports', targetOrOptions.toLowerCase().replace(/[^a-z0-9-]/g, '-'));
+  } else if (targetOrOptions) {
+    targetDir = targetOrOptions.targetDir;
+    projectId = targetOrOptions.projectId;
+    customManifest = targetOrOptions.manifest;
+    if (!targetDir && targetOrOptions.targetDirName) {
+      targetDir = path.join(process.cwd(), 'exports', targetOrOptions.targetDirName.toLowerCase().replace(/[^a-z0-9-]/g, '-'));
+    }
+  }
+
+  const appSlug = (projectId || graph.activeApp || 'synapse-exported-app')
     .toLowerCase()
     .replace(/[^a-z0-9-]/g, '-');
 
-  const baseDir = path.join(process.cwd(), 'exports', appSlug);
+  const baseDir = targetDir || path.join(process.cwd(), 'exports', appSlug);
   const filesGenerated: string[] = [];
 
   // Ensure directories exist
   const appDir = path.join(baseDir, 'app');
   const componentsDir = path.join(baseDir, 'components', 'nodes');
+  const serverActionsDir = path.join(baseDir, 'server', 'actions');
   const libDir = path.join(baseDir, 'lib', 'contracts');
+  const publicDir = path.join(baseDir, 'public');
+  const publicAssetsDir = path.join(publicDir, 'assets');
 
   fs.mkdirSync(appDir, { recursive: true });
   fs.mkdirSync(componentsDir, { recursive: true });
+  fs.mkdirSync(serverActionsDir, { recursive: true });
   fs.mkdirSync(libDir, { recursive: true });
+  fs.mkdirSync(publicAssetsDir, { recursive: true });
+
+  // Load project manifest if projectId is provided
+  const manifest = customManifest || (projectId ? getProjectManifest(projectId) : {
+    name: appSlug,
+    version: '0.1.0',
+    dependencies: {}
+  });
 
   // 1. package.json
   const packageJson = {
     name: appSlug,
-    version: '0.1.0',
+    version: manifest.version || '0.1.0',
     private: true,
     scripts: {
       dev: 'next dev',
@@ -56,7 +94,8 @@ export function exportNextjsApp(graph: SynapseGraph, targetDirName?: string): Ex
       react: '^19.0.0',
       'react-dom': '^19.0.0',
       zod: '^3.24.0',
-      'lucide-react': '^1.16.0'
+      'lucide-react': '^1.16.0',
+      ...(manifest.dependencies || {})
     },
     devDependencies: {
       '@types/node': '^20',
@@ -64,7 +103,8 @@ export function exportNextjsApp(graph: SynapseGraph, targetDirName?: string): Ex
       '@types/react-dom': '^19',
       postcss: '^8',
       tailwindcss: '^3.4.1',
-      typescript: '^5'
+      typescript: '^5',
+      ...(manifest.devDependencies || {})
     }
   };
   fs.writeFileSync(path.join(baseDir, 'package.json'), JSON.stringify(packageJson, null, 2), 'utf-8');
@@ -98,7 +138,10 @@ export function exportNextjsApp(graph: SynapseGraph, targetDirName?: string): Ex
   // 3. next.config.mjs
   const nextConfig = `/** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: true
+  reactStrictMode: true,
+  images: {
+    unoptimized: true
+  }
 };
 export default nextConfig;
 `;
@@ -154,7 +197,56 @@ body {
   fs.writeFileSync(path.join(appDir, 'globals.css'), globalsCss, 'utf-8');
   filesGenerated.push('app/globals.css');
 
-  // 6. app/layout.tsx
+  // 6. lib/db.ts (Native SQLite database client for Server Actions)
+  const dbHelperTs = `import path from 'path';
+
+let dbInstance: any = null;
+
+export function getDb() {
+  if (!dbInstance) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { Database } = require('bun:sqlite');
+      const dbPath = process.env.DATABASE_PATH || path.join(process.cwd(), 'data.db');
+      dbInstance = new Database(dbPath);
+    } catch (err) {
+      console.warn('[Synapse SQLite] Could not initialize bun:sqlite:', err);
+    }
+  }
+  return dbInstance;
+}
+
+export const db = getDb();
+`;
+  fs.writeFileSync(path.join(baseDir, 'lib', 'db.ts'), dbHelperTs, 'utf-8');
+  filesGenerated.push('lib/db.ts');
+
+  // 7. .env.local
+  if (projectId) {
+    const envVars = getProjectEnv(projectId);
+    const envLines = Object.entries(envVars).map(([k, v]) => `${k}="${v}"`);
+    fs.writeFileSync(path.join(baseDir, '.env.local'), envLines.join('\n') + '\n', 'utf-8');
+    filesGenerated.push('.env.local');
+  }
+
+  // 8. Copy Assets & SQLite DB if projectId is given
+  if (projectId) {
+    const assetsDir = getAssetsDir(projectId);
+    if (fs.existsSync(assetsDir)) {
+      const files = fs.readdirSync(assetsDir);
+      for (const f of files) {
+        fs.copyFileSync(path.join(assetsDir, f), path.join(publicAssetsDir, f));
+      }
+    }
+
+    const pDir = getProjectDir(projectId);
+    const srcDb = path.join(pDir, 'data.db');
+    if (fs.existsSync(srcDb)) {
+      fs.copyFileSync(srcDb, path.join(baseDir, 'data.db'));
+    }
+  }
+
+  // 9. app/layout.tsx
   const layoutTsx = `import type { Metadata } from 'next';
 import './globals.css';
 
@@ -176,29 +268,45 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   fs.writeFileSync(path.join(appDir, 'layout.tsx'), layoutTsx, 'utf-8');
   filesGenerated.push('app/layout.tsx');
 
-  // 7. Generate Component Files for Each Node
-  const componentImports: string[] = [];
-  const componentUsages: string[] = [];
+  // 10. Generate Server Actions & Client Components for Nodes
+  const clientComponentImports: string[] = [];
+  const clientComponentUsages: string[] = [];
 
   graph.nodes.forEach(node => {
     const compName = toComponentName(node.id);
-    const nodeFilePath = path.join(componentsDir, `${compName}.tsx`);
-
+    const isServerTarget = node.data.runtimeTarget === 'server';
     const cleanedCode = node.data.code || '';
-    const componentFileContent = `// Node ID: ${node.id}
-// Domain: ${node.data.domain} | Category: ${node.data.category}
+
+    if (isServerTarget) {
+      // Generate Next.js 15 Server Action
+      const actionFilePath = path.join(serverActionsDir, `${compName}.ts`);
+      const actionFileContent = `// Node ID: ${node.id}
+// Domain: ${node.data.domain} | Category: ${node.data.category} | Target: Server Action
+'use server';
+
+import { db, getDb } from '@/lib/db';
+
+${cleanedCode}
+`;
+      fs.writeFileSync(actionFilePath, actionFileContent, 'utf-8');
+      filesGenerated.push(`server/actions/${compName}.ts`);
+    } else {
+      // Generate React 19 Client Component
+      const nodeFilePath = path.join(componentsDir, `${compName}.tsx`);
+      const componentFileContent = `// Node ID: ${node.id}
+// Domain: ${node.data.domain} | Category: ${node.data.category} | Target: Client Component
 'use client';
 
 ${cleanedCode}
 `;
-    fs.writeFileSync(nodeFilePath, componentFileContent, 'utf-8');
-    filesGenerated.push(`components/nodes/${compName}.tsx`);
+      fs.writeFileSync(nodeFilePath, componentFileContent, 'utf-8');
+      filesGenerated.push(`components/nodes/${compName}.tsx`);
 
-    const fnMatch = cleanedCode.match(/export\s+function\s+([a-zA-Z0-9_]+)/);
-    const primaryFn = fnMatch ? fnMatch[1] : null;
+      const fnMatch = cleanedCode.match(/export\s+function\s+([a-zA-Z0-9_]+)/);
+      const primaryFn = fnMatch ? fnMatch[1] : null;
 
-    componentImports.push(`import * as ${compName} from '@/components/nodes/${compName}';`);
-    componentUsages.push(`        {/* ${node.data.title} (${node.id}) */}
+      clientComponentImports.push(`import * as ${compName} from '@/components/nodes/${compName}';`);
+      clientComponentUsages.push(`        {/* ${node.data.title} (${node.id}) */}
         <section key="${node.id}" className="p-4 rounded-xl border border-slate-800 bg-[#0d121d] flex flex-col gap-2">
           <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
             <span className="text-xs font-mono text-amber-400 font-bold uppercase tracking-wider">
@@ -238,9 +346,10 @@ ${cleanedCode}
             })()}
           </div>
         </section>`);
+    }
   });
 
-  // 8. Generate Central Contracts File (lib/contracts/schemas.ts)
+  // 11. Generate Central Contracts File (lib/contracts/schemas.ts)
   const contractsFile = `import { z } from 'zod';
 
 // Synapse Wire Contracts Registry
@@ -255,11 +364,11 @@ ${graph.wires.map(w => `  '${w.id}': {
   fs.writeFileSync(path.join(libDir, 'schemas.ts'), contractsFile, 'utf-8');
   filesGenerated.push('lib/contracts/schemas.ts');
 
-  // 9. app/page.tsx (Assembled Next.js 15 App)
+  // 12. app/page.tsx (Assembled Next.js 15 App)
   const pageTsx = `'use client';
 
 import React from 'react';
-${componentImports.join('\n')}
+${clientComponentImports.join('\n')}
 
 export default function SynapseAppPage() {
   return (
@@ -276,7 +385,7 @@ export default function SynapseAppPage() {
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-${componentUsages.join('\n')}
+${clientComponentUsages.join('\n')}
       </div>
     </main>
   );

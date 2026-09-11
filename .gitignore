@@ -7,8 +7,8 @@ node_modules/
 out/
 
 # Production
-build/
-dist/
+/build/
+/dist/
 
 # Environment
 .env
@@ -25,3 +25,11 @@ Thumbs.db
 # Synapse Exports & TS Build Cache
 exports/
 *.tsbuildinfo
+*.db
+*.db-wal
+*.db-shm
+
+# Multi-Tenant Projects Data
+projects/*
+!projects/.gitkeep
+

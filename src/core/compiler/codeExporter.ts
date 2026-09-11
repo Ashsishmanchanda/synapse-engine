@@ -380,6 +380,7 @@ ${graph.wires.map(w => `  '${w.id}': {
   filesGenerated.push('lib/contracts/schemas.ts');
 
   // 12. app/page.tsx (Assembled Next.js 15 App)
+  const isSingleApp = clientComponentUsages.length === 1;
   const pageTsx = `'use client';
 
 import React from 'react';
@@ -387,22 +388,22 @@ ${clientComponentImports.join('\n')}
 
 export default function SynapseAppPage() {
   return (
-    <main className="min-h-screen p-6 max-w-7xl mx-auto flex flex-col gap-6">
+${isSingleApp ? `    <div className="w-full h-screen overflow-hidden">\n${clientComponentUsages.map(u => `      ${u}`).join('\n')}\n    </div>` : `    <main className="min-h-screen p-6 max-w-7xl mx-auto flex flex-col gap-6">
       <header className="border-b border-slate-800 pb-4 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-500">
-            ${graph.activeApp || 'Synapse Exported App'}
+            \${graph.activeApp || 'Synapse Exported App'}
           </h1>
           <p className="text-xs text-slate-400 font-mono mt-1">
-            Synthesized from ${graph.nodes.length} Constitutional Micro-Nodes & ${graph.wires.length} Typed Wires
+            Synthesized from \${graph.nodes.length} Constitutional Micro-Nodes & \${graph.wires.length} Typed Wires
           </p>
         </div>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-${clientComponentUsages.join('\n')}
+\${clientComponentUsages.join('\n')}
       </div>
-    </main>
+    </main>`}
   );
 }
 `;

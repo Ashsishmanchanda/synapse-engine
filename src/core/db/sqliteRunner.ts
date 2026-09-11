@@ -1,5 +1,6 @@
 import path from 'path';
 import fs from 'fs';
+import { execSync } from 'child_process';
 import { getProjectDir } from '../projects/projectManager';
 
 export interface SqlQueryResult {
@@ -21,28 +22,128 @@ export function getDatabasePath(projectId: string): string {
   return path.join(pDir, 'data.db');
 }
 
+interface DbAdapter {
+  run(sql: string, params?: any[]): { changes: number; lastInsertRowid?: number | bigint };
+  all(sql: string, params?: any[]): any[];
+  close(): void;
+}
+
 /**
- * Gets or initializes a bun:sqlite Database instance for a project.
+ * Universal SQLite database adapter:
+ * Tries in order:
+ * 1. bun:sqlite (when running under Bun)
+ * 2. node:sqlite (when running under Node.js 22+)
+ * 3. better-sqlite3 (when installed)
+ * 4. python3 sqlite3 fallback (universal on all Linux environments)
  */
-function getProjectDb(projectId: string) {
+function getProjectDb(projectId: string): DbAdapter {
   const dbPath = getDatabasePath(projectId);
-  // Ensure parent directory exists
   const dir = path.dirname(dbPath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
 
+  // 1. Try bun:sqlite
   try {
-    // Dynamic import/require of bun:sqlite
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { Database } = require('bun:sqlite');
     const db = new Database(dbPath, { create: true });
     db.run('PRAGMA journal_mode = WAL;');
-    db.run('PRAGMA foreign_keys = ON;');
-    return db;
-  } catch (err: any) {
-    throw new Error(`Failed to initialize SQLite database: ${err.message}`);
-  }
+    return {
+      run: (sql, params = []) => {
+        const stmt = db.query(sql);
+        const res = stmt.run(...params);
+        return { changes: res.changes, lastInsertRowid: res.lastInsertRowid };
+      },
+      all: (sql, params = []) => {
+        const stmt = db.query(sql);
+        return stmt.all(...params);
+      },
+      close: () => {
+        try { db.close(); } catch {}
+      }
+    };
+  } catch {}
+
+  // 2. Try node:sqlite (Node 22.5+)
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { DatabaseSync } = require('node:sqlite');
+    const db = new DatabaseSync(dbPath);
+    return {
+      run: (sql, params = []) => {
+        const stmt = db.prepare(sql);
+        const res = stmt.run(...params);
+        return { changes: Number(res.changes), lastInsertRowid: res.lastInsertRowid };
+      },
+      all: (sql, params = []) => {
+        const stmt = db.prepare(sql);
+        return stmt.all(...params);
+      },
+      close: () => {
+        try { db.close(); } catch {}
+      }
+    };
+  } catch {}
+
+  // 3. Try better-sqlite3
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const Database = require('better-sqlite3');
+    const db = new Database(dbPath);
+    return {
+      run: (sql, params = []) => {
+        const stmt = db.prepare(sql);
+        const res = stmt.run(...params);
+        return { changes: res.changes, lastInsertRowid: res.lastInsertRowid };
+      },
+      all: (sql, params = []) => {
+        const stmt = db.prepare(sql);
+        return stmt.all(...params);
+      },
+      close: () => {
+        try { db.close(); } catch {}
+      }
+    };
+  } catch {}
+
+  // 4. Universal Python 3 SQLite Bridge (Guaranteed on Linux)
+  return {
+    run: (sql: string, params: any[] = []) => {
+      const pyScript = `
+import sqlite3, json, sys
+conn = sqlite3.connect(sys.argv[1])
+cursor = conn.cursor()
+sql = sys.argv[2]
+params = json.loads(sys.argv[3]) if len(sys.argv) > 3 else []
+cursor.execute(sql, params)
+conn.commit()
+print(json.dumps({'changes': conn.total_changes, 'lastInsertRowid': cursor.lastrowid}))
+`;
+      const out = execSync(`python3 -c ${JSON.stringify(pyScript)} ${JSON.stringify(dbPath)} ${JSON.stringify(sql)} ${JSON.stringify(JSON.stringify(params))}`, {
+        encoding: 'utf8'
+      });
+      return JSON.parse(out.trim());
+    },
+    all: (sql: string, params: any[] = []) => {
+      const pyScript = `
+import sqlite3, json, sys
+conn = sqlite3.connect(sys.argv[1])
+cursor = conn.cursor()
+sql = sys.argv[2]
+params = json.loads(sys.argv[3]) if len(sys.argv) > 3 else []
+cursor.execute(sql, params)
+cols = [d[0] for d in cursor.description] if cursor.description else []
+rows = [dict(zip(cols, r)) for r in cursor.fetchall()]
+print(json.dumps(rows))
+`;
+      const out = execSync(`python3 -c ${JSON.stringify(pyScript)} ${JSON.stringify(dbPath)} ${JSON.stringify(sql)} ${JSON.stringify(JSON.stringify(params))}`, {
+        encoding: 'utf8'
+      });
+      return JSON.parse(out.trim());
+    },
+    close: () => {}
+  };
 }
 
 /**
@@ -68,13 +169,11 @@ export function executeQuery(projectId: string, sql: string, params: any[] = [])
     const trimmed = sql.trim().toUpperCase();
 
     if (trimmed.startsWith('SELECT') || trimmed.startsWith('PRAGMA') || trimmed.startsWith('WITH')) {
-      const stmt = db.query(sql);
-      const rows = stmt.all(...params);
+      const rows = db.all(sql, params);
       db.close();
       return { success: true, rows };
     } else {
-      const stmt = db.query(sql);
-      const result = stmt.run(...params);
+      const result = db.run(sql, params);
       db.close();
       return {
         success: true,
@@ -93,17 +192,14 @@ export function executeQuery(projectId: string, sql: string, params: any[] = [])
 export function getTables(projectId: string): TableInfo[] {
   try {
     const db = getProjectDb(projectId);
-    const stmt = db.query(
+    const tables: TableInfo[] = db.all(
       `SELECT name, sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name;`
-    );
-    const tables: TableInfo[] = stmt.all() as TableInfo[];
+    ) as TableInfo[];
 
-    // Count rows for each table
     for (const table of tables) {
       try {
-        const countStmt = db.query(`SELECT COUNT(*) as count FROM "${table.name}";`);
-        const countRes = countStmt.get() as { count: number };
-        table.rowCount = countRes ? countRes.count : 0;
+        const countRes = db.all(`SELECT COUNT(*) as count FROM "${table.name}";`) as Array<{ count: number }>;
+        table.rowCount = countRes && countRes[0] ? countRes[0].count : 0;
       } catch {
         table.rowCount = 0;
       }
@@ -121,11 +217,9 @@ export function getTables(projectId: string): TableInfo[] {
  */
 export function getTableRows(projectId: string, tableName: string, limit = 50): any[] {
   try {
-    // Sanitize table name against injection
     const safeTable = tableName.replace(/[^a-zA-Z0-9_]/g, '');
     const db = getProjectDb(projectId);
-    const stmt = db.query(`SELECT * FROM "${safeTable}" LIMIT ?;`);
-    const rows = stmt.all(limit);
+    const rows = db.all(`SELECT * FROM "${safeTable}" LIMIT ?;`, [limit]);
     db.close();
     return rows;
   } catch {

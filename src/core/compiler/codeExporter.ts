@@ -204,13 +204,28 @@ let dbInstance: any = null;
 
 export function getDb() {
   if (!dbInstance) {
+    const dbPath = process.env.DATABASE_PATH || path.join(process.cwd(), 'data.db');
     try {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { Database } = require('bun:sqlite');
-      const dbPath = process.env.DATABASE_PATH || path.join(process.cwd(), 'data.db');
       dbInstance = new Database(dbPath);
-    } catch (err) {
-      console.warn('[Synapse SQLite] Could not initialize bun:sqlite:', err);
+    } catch {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { DatabaseSync } = require('node:sqlite');
+        const dbSync = new DatabaseSync(dbPath);
+        dbInstance = {
+          query: (sql: string) => ({
+            all: (...params: any[]) => dbSync.prepare(sql).all(...params),
+            get: (...params: any[]) => dbSync.prepare(sql).get(...params),
+            run: (...params: any[]) => dbSync.prepare(sql).run(...params)
+          }),
+          run: (sql: string, ...params: any[]) => dbSync.prepare(sql).run(...params),
+          close: () => dbSync.close()
+        };
+      } catch (err) {
+        console.warn('[Synapse SQLite] Could not initialize native SQLite:', err);
+      }
     }
   }
   return dbInstance;
